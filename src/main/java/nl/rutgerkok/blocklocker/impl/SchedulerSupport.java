@@ -1,7 +1,9 @@
 package nl.rutgerkok.blocklocker.impl;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -30,39 +32,41 @@ import org.bukkit.scheduler.BukkitTask;
  */
 final class SchedulerSupport {
 
-    private static Method getRegionScheduler;
-    private static Method getGlobalRegionScheduler;
-    private static Method getAsyncScheduler;
+    private static MethodHandle getRegionScheduler;
+    private static MethodHandle getGlobalRegionScheduler;
+    private static MethodHandle getAsyncScheduler;
 
-    private static Class<?> globalRegionScheduler;
-    private static Class<?> regionScheduler;
-    private static Class<?> asyncScheduler;
-
-    private static Method runDelayedOnGlobal;
-    private static Method runDelayedOnRegion;
-    private static Method runOnRegion;
-    private static Method runAtFixedRateAsync;
+    private static MethodHandle runDelayedOnGlobal;
+    private static MethodHandle runDelayedOnRegion;
+    private static MethodHandle runOnRegion;
+    private static MethodHandle runAtFixedRateAsync;
 
     static {
         try {
-            getRegionScheduler = Server.class.getMethod("getRegionScheduler");
-            getGlobalRegionScheduler = Server.class.getMethod("getGlobalRegionScheduler");
-            getAsyncScheduler = Server.class.getMethod("getAsyncScheduler");
+            final MethodHandles.Lookup lookup = MethodHandles.publicLookup();
+            final MethodType objectReturn = MethodType.methodType(Object.class);
+            getRegionScheduler = lookup.findVirtual(Server.class, "getRegionScheduler", objectReturn);
+            getGlobalRegionScheduler = lookup.findVirtual(Server.class, "getGlobalRegionScheduler", objectReturn);
+            getAsyncScheduler = lookup.findVirtual(Server.class, "getAsyncScheduler", objectReturn);
 
-            globalRegionScheduler = getGlobalRegionScheduler.getReturnType();
-            regionScheduler = getRegionScheduler.getReturnType();
-            asyncScheduler = getAsyncScheduler.getReturnType();
+            final Class<?> globalRegionScheduler = getGlobalRegionScheduler.type().returnType();
+            final Class<?> regionScheduler = getRegionScheduler.type().returnType();
+            final Class<?> asyncScheduler = getAsyncScheduler.type().returnType();
 
-            runDelayedOnGlobal = globalRegionScheduler
-                    .getMethod("runDelayed", Plugin.class, Consumer.class, long.class);
-            runDelayedOnRegion = regionScheduler
-                    .getMethod("runDelayed", Plugin.class, World.class, int.class, int.class, Consumer.class, long.class);
-            runOnRegion = regionScheduler
-                    .getMethod("run", Plugin.class, Location.class, Consumer.class);
-            runAtFixedRateAsync = asyncScheduler
-                    .getMethod("runAtFixedRate", Plugin.class, Consumer.class, long.class, long.class, TimeUnit.class);
+            final MethodType runDelayedOnGlobalType = MethodType.methodType(
+                    Object.class, Plugin.class, Consumer.class, long.class);
+            runDelayedOnGlobal = lookup.findVirtual(globalRegionScheduler, "runDelayed", runDelayedOnGlobalType);
+            final MethodType runDelayedOnRegionType = MethodType.methodType(
+                    Object.class, Plugin.class, World.class, int.class, int.class, Consumer.class, long.class);
+            runDelayedOnRegion = lookup.findVirtual(regionScheduler, "runDelayed", runDelayedOnRegionType);
+            final MethodType runOnRegionType = MethodType.methodType(
+                    Object.class, Plugin.class, Location.class, Consumer.class);
+            runOnRegion = lookup.findVirtual(regionScheduler, "run", runOnRegionType);
+            final MethodType runAtFixedRateAsyncType = MethodType.methodType(
+                    Object.class, Plugin.class, Consumer.class, long.class, long.class, TimeUnit.class);
+            runAtFixedRateAsync = lookup.findVirtual(asyncScheduler, "runAtFixedRate", runAtFixedRateAsyncType);
             folia = true;
-        } catch (NoSuchMethodException e) {
+        } catch (IllegalAccessException | NoSuchMethodException e) {
             folia = false;
         }
     }
@@ -96,12 +100,10 @@ final class SchedulerSupport {
     public void runLater(Block block, Runnable runnable) {
         if (folia) {
             try {
-                Object regionScheduler = getRegionScheduler.invoke(plugin.getServer());
-                Consumer<?> consumer = task -> {
-                    runnable.run();
-                };
+                final Object regionScheduler = getRegionScheduler.invoke(plugin.getServer());
+                final Consumer<?> consumer = task -> runnable.run();
                 runOnRegion.invoke(regionScheduler, this.plugin, block.getLocation(), consumer);
-            } catch (IllegalAccessException | InvocationTargetException e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         } else {
@@ -112,13 +114,11 @@ final class SchedulerSupport {
     public void runLater(Block block, Runnable runnable, int ticks) {
         if (folia) {
             try {
-                Object regionScheduler = getRegionScheduler.invoke(plugin.getServer());
-                Consumer<?> consumer = task -> {
-                    runnable.run();
-                };
+                final Object regionScheduler = getRegionScheduler.invoke(plugin.getServer());
+                final Consumer<?> consumer = task -> runnable.run();
                 runDelayedOnRegion.invoke(regionScheduler, plugin, block
                         .getWorld(), block.getX() >> 4, block.getZ() >> 4, consumer, ticks);
-            } catch (IllegalAccessException | InvocationTargetException e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         } else {
@@ -129,12 +129,10 @@ final class SchedulerSupport {
     void runLaterGlobally(Runnable runnable, int ticks) {
         if (folia) {
             try {
-                Object globalRegionScheduler = getGlobalRegionScheduler.invoke(plugin.getServer());
-                Consumer<?> consumer = task -> {
-                    runnable.run();
-                };
+                final Object globalRegionScheduler = getGlobalRegionScheduler.invoke(plugin.getServer());
+                final Consumer<?> consumer = task -> runnable.run();
                 runDelayedOnGlobal.invoke(globalRegionScheduler, plugin, consumer, ticks);
-            } catch (IllegalAccessException | InvocationTargetException e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         } else {
@@ -178,14 +176,11 @@ final class SchedulerSupport {
                 };
                 runAtFixedRateAsync
                         .invoke(asyncScheduler, plugin, consumer, 1, checkInterval * 50, TimeUnit.MILLISECONDS);
-            } catch (IllegalAccessException | InvocationTargetException e) {
+            } catch (Throwable e) {
                 throw new RuntimeException(e);
             }
         } else {
-            BukkitTask[] bukkitTask = new BukkitTask[1];
-            bukkitTask[0] = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-                task.accept(bukkitTask[0]);
-            }, 1, checkInterval);
+            plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, task, 1, checkInterval);
         }
     }
 }

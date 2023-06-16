@@ -46,7 +46,7 @@ public class SignChangeListener extends EventListener {
         Optional<SignType> oldSignType = this.getExistingSignType(event.getBlock(), event.getSide());
 
         // Only protection signs should be handled
-        if (!newSignType.isPresent() && !oldSignType.isPresent()) {
+        if (newSignType.isEmpty() && oldSignType.isEmpty()) {
             return;
         }
 
@@ -96,7 +96,7 @@ public class SignChangeListener extends EventListener {
 
     private void handleSignNotNearbyProtection(SignChangeEvent event) {
         Optional<SignType> parsedSign = plugin.getSignParser().getSignType(event);
-        if (!parsedSign.isPresent()) {
+        if (parsedSign.isEmpty()) {
             // Not trying to claim a container
             return;
         }
@@ -176,14 +176,9 @@ public class SignChangeListener extends EventListener {
      *            The block that will be part of the protection.
      */
     private void updateBlockForUniqueIdsSoon(final Block block) {
-        plugin.runLater(block, new Runnable() {
-            @Override
-            public void run() {
-                Optional<Protection> protection = plugin.getProtectionFinder().findProtection(block);
-                if (protection.isPresent()) {
-                    plugin.getProtectionUpdater().update(protection.get(), true);
-                }
-            }
+        plugin.runLater(block, () -> {
+            Optional<Protection> protection = plugin.getProtectionFinder().findProtection(block);
+            protection.ifPresent(value -> plugin.getProtectionUpdater().update(value, true));
         });
     }
 }

@@ -65,12 +65,7 @@ public final class Updater {
         if (plugin.getServer().isPrimaryThread()) {
             notifyServerFromServerThread(result);
         } else {
-            plugin.runLaterGlobally(new Runnable() {
-                @Override
-                public void run() {
-                    notifyServerFromServerThread(result);
-                }
-            }, 1);
+            plugin.runLaterGlobally(() -> notifyServerFromServerThread(result), 1);
         }
     }
 
@@ -109,7 +104,7 @@ public final class Updater {
     private void updateInstallSync(UpdateCheckResult result) throws IOException {
         Optional<String> minecraftVersion = getMinecraftVersion();
 
-        if (result.getMinecraftVersions().containsAll(ImmutableSet.of(minecraftVersion.get()))) {
+        if (result.getMinecraftVersions().containsAll(ImmutableSet.of(minecraftVersion.orElseThrow()))) {
             // Notify that an update is available
             notifyServer(new UpdateResult(Status.MANUAL_UPDATE, result));
         } else {

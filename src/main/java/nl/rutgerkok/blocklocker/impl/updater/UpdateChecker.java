@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 import org.bukkit.plugin.Plugin;
 
@@ -31,7 +32,7 @@ final class UpdateChecker {
      *             If an IO error occurs.
      */
     public UpdateCheckResult checkForUpdatesSync(Plugin plugin) throws IOException {
-        String currentVersionEncoded = URLEncoder.encode(plugin.getDescription().getVersion(), "UTF-8");
+        String currentVersionEncoded = URLEncoder.encode(plugin.getDescription().getVersion(), StandardCharsets.UTF_8);
         URL url = new URL(UPDATE_URL + "?version=" + currentVersionEncoded);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
